@@ -15,6 +15,9 @@ import com.covenantcode.crm.repository.StudyGroupRepository;
 import com.covenantcode.crm.repository.UserRepository;
 import com.covenantcode.crm.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -112,6 +115,15 @@ class TeacherControllerIntegrationTest extends BaseIntegrationTest {
 
         adminToken = jwtService.generateToken(admin);
     }
+
+    @AfterEach
+    void tearDown() {
+
+        userRepository.deleteAll(createdUsers);
+        createdUsers.clear();
+    }
+
+    private final List<User> createdUsers = new ArrayList<>();
 
     @Test
     @DisplayName("GET /api/v1/teachers — возвращает 200 и список преподавателей")
@@ -370,5 +382,94 @@ class TeacherControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.type").value("forbidden"))
                 .andExpect(jsonPath("$.status").value(403));
+    }
+
+
+
+    @Test
+    @DisplayName("GET /api/v1/teachers/{id} - возвращает 200 для существующего преподавателя")
+    void getTeacherById_shouldReturn200ForExistingTeacher() throws Exception {
+        mockMvc.perform(get("/api/v1/teachers/{id}", testTeacher.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testTeacher.getId()))
+                .andExpect(jsonPath("$.firstName").value(testTeacher.getFirstName()))
+                .andExpect(jsonPath("$.lastName").value(testTeacher.getLastName()))
+                .andExpect(jsonPath("$.email").value(testTeacher.getEmail()));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/teachers/{id} — несуществующий ID возвращает 404")
+    void getTeacherById_whenNotExists_returns404() throws Exception {
+        Long nonExistentId = 999L;
+
+        mockMvc.perform(get("/api/v1/teachers/{id}", nonExistentId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("resource-not-found"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("Преподаватель с id 999 не найден"));
+    }
+
+
+
+    @Test
+    @DisplayName("GET /api/v1/teachers/{id} — возвращает 404 для пользователя, который не является преподавателем")
+    void getTeacherById_shouldReturn404ForNonTeacherUser() throws Exception {
+        Role studentRole = roleRepository.findByName(RoleName.STUDENT)
+                .orElseGet(() -> {
+                    Role newRole = Role.builder()
+                            .name(RoleName.STUDENT)
+                            .build();
+                    return roleRepository.save(newRole);
+                });
+
+        User student = User.builder()
+                .firstName("Student")
+                .lastName("Studentov")
+                .email("student@example.com")
+                .password(passwordEncoder.encode("student123"))
+                .phone("+79161234569")
+                .enabled(true)
+                .role(studentRole)
+                .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.now(ZoneOffset.UTC))
+                .build();
+        userRepository.save(student);
+
+        mockMvc.perform(get("/api/v1/teachers/{id}", student.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.type").value("resource-not-found"))
+                .andExpect(jsonPath("$.title").value("Not Found"))
+                .andExpect(jsonPath("$.detail").value(
+                        "Преподаватель с id " + student.getId() + " не найден"
+                ))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/teachers/{id} — возвращает 403 при использовании токена STUDENT")
+    void getTeacherById_withStudentToken_shouldReturn403() throws Exception {
+        User testStudent = User.builder()
+                .firstName("Student")
+                .lastName("Studentov")
+                .email("student_only_for_this_test@test.com")
+                .password(passwordEncoder.encode("student123"))
+                .role(roleRepository.findByName(RoleName.STUDENT).orElseThrow())
+                .build();
+
+        User savedStudent = userRepository.save(testStudent);
+        createdUsers.add(savedStudent);
+
+        String studentToken = jwtService.generateToken(savedStudent);
+
+        mockMvc.perform(get("/api/v1/teachers/{id}", testTeacher.getId())
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isForbidden());
     }
 }
