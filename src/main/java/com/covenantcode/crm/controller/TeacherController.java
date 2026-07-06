@@ -75,4 +75,17 @@ public class TeacherController {
         teacherService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'TEACHER')")
+    @Operation(summary = "Получить преподавателя по id")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Преподаватель найден"),
+            @ApiResponse(responseCode = "401", description = "Не авторизован"),
+            @ApiResponse(responseCode = "403", description = "Доступ запрещён"),
+            @ApiResponse(responseCode = "404", description = "Преподаватель с id не найден")
+    })
+    public ResponseEntity<TeacherResponse> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(teacherService.getById(id));
+    }
 }

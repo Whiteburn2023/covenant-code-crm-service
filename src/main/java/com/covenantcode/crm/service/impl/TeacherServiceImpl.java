@@ -88,4 +88,16 @@ public class TeacherServiceImpl implements TeacherService {
 
         userRepository.delete(user);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TeacherResponse getById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Преподаватель с id " + id + " не найден"));
+
+        if (user.getRole().getName() != RoleName.TEACHER) {
+            throw new ResourceNotFoundException("Преподаватель с id " + id + " не найден");
+        }
+        return teacherMapper.toResponse(user);
+    }
 }

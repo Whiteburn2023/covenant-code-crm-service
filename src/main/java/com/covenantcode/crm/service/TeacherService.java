@@ -12,4 +12,6 @@ public interface TeacherService {
     TeacherResponse create(TeacherCreateRequest request);
 
     void delete(Long id);
+
+    TeacherResponse getById(Long id);
 }

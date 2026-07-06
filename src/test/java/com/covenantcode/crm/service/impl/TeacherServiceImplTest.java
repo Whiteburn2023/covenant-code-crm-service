@@ -17,6 +17,7 @@ import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -379,4 +379,62 @@ public class TeacherServiceImplTest {
         verify(studyGroupRepository, times(1)).countByTeacherId(teacherId);
         verify(userRepository, never()).delete(any(User.class));
     }
+
+    @Test
+    @DisplayName("getById — успешное получение преподавателя")
+    void getById_whenTeacherExists_returnsTeacherResponse() {
+
+        Long teacherId = 1L;
+        when(userRepository.findById(teacherId)).thenReturn(Optional.of(testUser));
+        when(teacherMapper.toResponse(testUser)).thenReturn(testResponse);
+
+        TeacherResponse response = teacherService.getById(teacherId);
+
+        assertThat(response).isEqualTo(testResponse);
+        verify(userRepository).findById(teacherId);
+        verify(teacherMapper).toResponse(testUser);
+    }
+
+    @Test
+    @DisplayName("getById — пользователь не найден")
+    void getById_whenUserNotFound_throwsResourceNotFoundException() {
+
+        Long nonExistentId = 999L;
+        when(userRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> teacherService.getById(nonExistentId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Преподаватель с id " + nonExistentId + " не найден");
+
+        verify(userRepository).findById(nonExistentId);
+        verify(teacherMapper, never()).toResponse(any());
+    }
+
+    @Test
+    @DisplayName("getById — пользователь найден, но не TEACHER")
+    void getById_whenUserIsNotTeacher_throwsResourceNotFoundException() {
+
+        Long nonTeacherId = 2L;
+        Role studentRole = new Role();
+        studentRole.setName(RoleName.STUDENT);
+
+        User nonTeacherUser = User.builder()
+                .id(nonTeacherId)
+                .firstName("Алексей")
+                .lastName("Сидоров")
+                .email("student@example.com")
+                .role(studentRole)
+                .build();
+
+        when(userRepository.findById(nonTeacherId)).thenReturn(Optional.of(nonTeacherUser));
+
+        assertThatThrownBy(() -> teacherService.getById(nonTeacherId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Преподаватель с id " + nonTeacherId + " не найден");
+
+        verify(userRepository).findById(nonTeacherId);
+        verify(teacherMapper, never()).toResponse(any());
+    }
+
 }
+
