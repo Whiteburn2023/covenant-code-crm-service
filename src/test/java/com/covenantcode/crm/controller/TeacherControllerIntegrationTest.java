@@ -1,7 +1,9 @@
 package com.covenantcode.crm.controller;
 
+import com.covenantcode.crm.dto.user.EnabledUpdateRequest;
 import com.covenantcode.crm.dto.teacher.TeacherCreateRequest;
 import com.covenantcode.crm.BaseIntegrationTest;
+import com.covenantcode.crm.dto.teacher.TeacherUpdateRequest;
 import com.covenantcode.crm.entity.Role;
 import com.covenantcode.crm.entity.StudyGroup;
 import com.covenantcode.crm.entity.User;
@@ -15,8 +17,10 @@ import com.covenantcode.crm.repository.StudyGroupRepository;
 import com.covenantcode.crm.repository.UserRepository;
 import com.covenantcode.crm.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.ArrayList;
 import java.util.List;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,9 +44,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -388,8 +394,6 @@ class TeacherControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.status").value(403));
     }
 
-
-
     @Test
     @DisplayName("GET /api/v1/teachers/{id} - возвращает 200 для существующего преподавателя")
     void getTeacherById_shouldReturn200ForExistingTeacher() throws Exception {
@@ -416,8 +420,6 @@ class TeacherControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Преподаватель с id 999 не найден"));
     }
-
-
 
     @Test
     @DisplayName("GET /api/v1/teachers/{id} — возвращает 404 для пользователя, который не является преподавателем")
@@ -475,5 +477,110 @@ class TeacherControllerIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(get("/api/v1/teachers/{id}", testTeacher.getId())
                         .header("Authorization", "Bearer " + studentToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/teachers/{id} — 200, данные обновились")
+    void updateTeacher_ShouldReturn200AndUpdateData() throws Exception {
+
+        Long teacherId = testTeacher.getId();
+        TeacherUpdateRequest request = TeacherUpdateRequest.builder()
+                .firstName("Алексей")
+                .lastName("Смирнов")
+                .phone("+79169999999")
+                .build();
+
+        mockMvc.perform(put("/api/v1/teachers/{id}", teacherId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firstName").value("Алексей"))
+                .andExpect(jsonPath("$.lastName").value("Смирнов"))
+                .andExpect(jsonPath("$.phone").value("+79169999999"));
+
+        User updatedTeacher = userRepository.findById(teacherId).orElseThrow();
+        assertThat(updatedTeacher.getFirstName()).isEqualTo("Алексей");
+        assertThat(updatedTeacher.getLastName()).isEqualTo("Смирнов");
+        assertThat(updatedTeacher.getPhone()).isEqualTo("+79169999999");
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/teachers/{id}/enabled — 200, enabled изменился")
+    void setEnabled_ShouldReturn200AndEnabledChanged() throws Exception {
+
+        Long teacherId = testTeacher.getId();
+        EnabledUpdateRequest request = new EnabledUpdateRequest();
+        request.setEnabled(false);
+
+        mockMvc.perform(patch("/api/v1/teachers/{id}/enabled", teacherId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(false));
+
+        User blockedTeacher = userRepository.findById(teacherId).orElseThrow();
+        assertThat(blockedTeacher.isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/teachers/{id} с несуществующим ID — 404")
+    void updateTeacher_NotFound_Returns404() throws Exception {
+
+        Long nonExistentId = 9999L;
+        TeacherUpdateRequest request = TeacherUpdateRequest.builder()
+                .firstName("Алексей")
+                .lastName("Смирнов")
+                .phone("+79169999999")
+                .build();
+
+        mockMvc.perform(put("/api/v1/teachers/{id}", nonExistentId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("resource-not-found"))
+                .andExpect(jsonPath("$.detail").value("Преподаватель с id " + nonExistentId + " не найден"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/teachers/{id} не-ADMIN — 403")
+    void updateTeacher_NotAdmin_Returns403() throws Exception {
+
+        Long teacherId = testTeacher.getId();
+        String teacherToken = jwtService.generateToken(testTeacher);
+
+        TeacherUpdateRequest request = TeacherUpdateRequest.builder()
+                .firstName("Алексей")
+                .lastName("Смирнов")
+                .phone("+79169999999")
+                .build();
+
+        mockMvc.perform(put("/api/v1/teachers/{id}", teacherId)
+                        .header("Authorization", "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value("forbidden"))
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/teachers/{id}/enabled не-ADMIN — 403")
+    void setEnabled_NotAdmin_Returns403() throws Exception {
+        Long teacherId = testTeacher.getId();
+        String teacherToken = jwtService.generateToken(testTeacher);
+
+        EnabledUpdateRequest request = new EnabledUpdateRequest();
+        request.setEnabled(false);
+
+        mockMvc.perform(patch("/api/v1/teachers/{id}/enabled", teacherId)
+                        .header("Authorization", "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type").value("forbidden"))
+                .andExpect(jsonPath("$.status").value(403));
     }
 }

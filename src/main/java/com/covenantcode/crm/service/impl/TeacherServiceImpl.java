@@ -1,6 +1,7 @@
 package com.covenantcode.crm.service.impl;
 
 import com.covenantcode.crm.dto.teacher.TeacherCreateRequest;
+import com.covenantcode.crm.dto.teacher.TeacherUpdateRequest;
 import com.covenantcode.crm.dto.teacher.TeacherResponse;
 import com.covenantcode.crm.entity.Role;
 import com.covenantcode.crm.entity.User;
@@ -99,5 +100,40 @@ public class TeacherServiceImpl implements TeacherService {
             throw new ResourceNotFoundException("Преподаватель с id " + id + " не найден");
         }
         return teacherMapper.toResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public TeacherResponse update(Long id, TeacherUpdateRequest request) {
+        User user = findTeacherById(id);
+
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setPhone(request.getPhone());
+
+        User updatedUser = userRepository.saveAndFlush(user);
+        return teacherMapper.toResponse(updatedUser);
+    }
+
+    @Override
+    @Transactional
+    public TeacherResponse setEnabled(Long id, boolean enabled) {
+        User user = findTeacherById(id);
+
+        user.setEnabled(enabled);
+
+        User updatedUser = userRepository.saveAndFlush(user);
+        return teacherMapper.toResponse(updatedUser);
+    }
+
+    private User findTeacherById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Преподаватель с id " + id + " не найден"));
+
+        if (user.getRole() == null || !RoleName.TEACHER.equals(user.getRole().getName())) {
+            throw new ResourceNotFoundException("Преподаватель с id " + id + " не найден");
+        }
+
+        return user;
     }
 }
