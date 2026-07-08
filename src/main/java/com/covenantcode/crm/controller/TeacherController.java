@@ -1,6 +1,8 @@
 package com.covenantcode.crm.controller;
 
+import com.covenantcode.crm.dto.user.EnabledUpdateRequest;
 import com.covenantcode.crm.dto.teacher.TeacherCreateRequest;
+import com.covenantcode.crm.dto.teacher.TeacherUpdateRequest;
 import com.covenantcode.crm.dto.teacher.TeacherResponse;
 import com.covenantcode.crm.service.TeacherService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,14 +17,17 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+
 
 @RestController
 @RequestMapping("/api/v1/teachers")
@@ -87,5 +92,37 @@ public class TeacherController {
     })
     public ResponseEntity<TeacherResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(teacherService.getById(id));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    @Operation(summary = "Полное обновление профиля преподавателя")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Профиль обновлён"),
+            @ApiResponse(responseCode = "400", description = "Ошибка валидации"),
+            @ApiResponse(responseCode = "401", description = "Не авторизован"),
+            @ApiResponse(responseCode = "403", description = "Доступ запрещён (нужен ADMIN)"),
+            @ApiResponse(responseCode = "404", description = "Преподаватель не найден")
+    })
+    public ResponseEntity<TeacherResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody TeacherUpdateRequest request) {
+        return ResponseEntity.ok(teacherService.update(id, request));
+    }
+
+    @PatchMapping("/{id}/enabled")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    @Operation(summary = "Блокировка/разблокировка преподавателя")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Статус обновлён"),
+            @ApiResponse(responseCode = "400", description = "Ошибка валидации"),
+            @ApiResponse(responseCode = "401", description = "Не авторизован"),
+            @ApiResponse(responseCode = "403", description = "Доступ запрещён (нужен ADMIN)"),
+            @ApiResponse(responseCode = "404", description = "Преподаватель не найден")
+    })
+    public ResponseEntity<TeacherResponse> setEnabled(
+            @PathVariable Long id,
+            @Valid @RequestBody EnabledUpdateRequest request) {
+        return ResponseEntity.ok(teacherService.setEnabled(id, request.getEnabled()));
     }
 }

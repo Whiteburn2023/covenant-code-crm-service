@@ -2,6 +2,7 @@ package com.covenantcode.crm.service.impl;
 
 import com.covenantcode.crm.dto.teacher.TeacherCreateRequest;
 import com.covenantcode.crm.dto.teacher.TeacherResponse;
+import com.covenantcode.crm.dto.teacher.TeacherUpdateRequest;
 import com.covenantcode.crm.entity.Role;
 import com.covenantcode.crm.entity.User;
 import com.covenantcode.crm.entity.enums.RoleName;
@@ -434,6 +435,91 @@ public class TeacherServiceImplTest {
 
         verify(userRepository).findById(nonTeacherId);
         verify(teacherMapper, never()).toResponse(any());
+    }
+
+    @Test
+    @DisplayName("update — успешное обновление профиля, поля изменились")
+    void update_Success_FieldsChanged() {
+
+        Long teacherId = 1L;
+        TeacherUpdateRequest updateRequest = TeacherUpdateRequest.builder()
+                .firstName("Алексей")
+                .lastName("Смирнов")
+                .phone("+79169999999")
+                .build();
+
+        when(userRepository.findById(teacherId)).thenReturn(Optional.of(testUser));
+        when(userRepository.saveAndFlush(any(User.class))).thenReturn(testUser);
+        when(teacherMapper.toResponse(testUser)).thenReturn(testResponse);
+
+        TeacherResponse result = teacherService.update(teacherId, updateRequest);
+
+        assertThat(result).isEqualTo(testResponse);
+
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(userCaptor.capture());
+        User capturedUser = userCaptor.getValue();
+
+        assertThat(capturedUser.getFirstName()).isEqualTo("Алексей");
+        assertThat(capturedUser.getLastName()).isEqualTo("Смирнов");
+        assertThat(capturedUser.getPhone()).isEqualTo("+79169999999");
+    }
+
+    @Test
+    @DisplayName("update — для несуществующего ID выбрасывает ResourceNotFoundException")
+    void update_NotFound_ThrowsResourceNotFoundException() {
+
+        Long nonExistentId = 999L;
+        TeacherUpdateRequest updateRequest = TeacherUpdateRequest.builder()
+                .firstName("Алексей")
+                .lastName("Смирнов")
+                .build();
+
+        when(userRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> teacherService.update(nonExistentId, updateRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Преподаватель с id " + nonExistentId + " не найден");
+
+        verify(userRepository).findById(nonExistentId);
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("setEnabled — успешная блокировка, enabled = false")
+    void setEnabled_Success_EnabledFalse() {
+
+        Long teacherId = 1L;
+
+        when(userRepository.findById(teacherId)).thenReturn(Optional.of(testUser));
+        when(userRepository.saveAndFlush(any(User.class))).thenReturn(testUser);
+        when(teacherMapper.toResponse(testUser)).thenReturn(testResponse);
+
+        TeacherResponse result = teacherService.setEnabled(teacherId, false);
+
+        assertThat(result).isEqualTo(testResponse);
+
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(userCaptor.capture());
+        User capturedUser = userCaptor.getValue();
+
+        assertThat(capturedUser.isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("setEnabled — для несуществующего ID выбрасывает ResourceNotFoundException")
+    void setEnabled_NotFound_ThrowsResourceNotFoundException() {
+
+        Long nonExistentId = 999L;
+
+        when(userRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> teacherService.setEnabled(nonExistentId, false))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Преподаватель с id " + nonExistentId + " не найден");
+
+        verify(userRepository).findById(nonExistentId);
+        verify(userRepository, never()).saveAndFlush(any());
     }
 
 }
